@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  db:
+    image: bitnami/mariadb-galera:latest
+    environment:
+      - MARIADB_GALERA_CLUSTER_NAME=wp_cluster
+      - MARIADB_GALERA_NODE_NAME=db
+      - MARIADB_ROOT_PASSWORD=reas2024
+      - MARIADB_USER=wordpress
+      - MARIADB_PASSWORD=wordpress
+      - MARIADB_DATABASE=wordpress
+      - MARIADB_GALERA_CLUSTER_BOOTSTRAP=yes  # Só no primeiro nó (db)
+      - MARIADB_GALERA_MARIABACKUP_PASSWORD=reas2024bckp
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-preas2024"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db2:
+    image: bitnami/mariadb-galera:latest
+    environment:
+      - MARIADB_GALERA_CLUSTER_NAME=wp_cluster
+      - MARIADB_GALERA_NODE_NAME=db2
+      - MARIADB_ROOT_PASSWORD=reas2024
+      - MARIADB_GALERA_MARIABACKUP_PASSWORD=reas2024bckp
+      - MARIADB_GALERA_CLUSTER_ADDRESS=gcomm://db:4567,0.0.0.0:4567  # Conectar ao db (nó principal)
+      - MARIADB_GALERA_CLUSTER_BOOTSTRAP=no  # Não inicializa, apenas junta-se ao cluster
+    volumes:
+      - db_data2:/var/lib/mysql
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-preas2024"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db3:
+    image: bitnami/mariadb-galera:latest
+    environment:
+      - MARIADB_GALERA_CLUSTER_NAME=wp_cluster
+      - MARIADB_GALERA_NODE_NAME=db3
+      - MARIADB_ROOT_PASSWORD=reas2024
+      - MARIADB_GALERA_MARIABACKUP_PASSWORD=reas2024bckp
+      - MARIADB_GALERA_CLUSTER_ADDRESS=gcomm://db:4567,0.0.0.0:4567  # Conectar ao db (nó principal)
+      - MARIADB_GALERA_CLUSTER_BOOTSTRAP=no  # Não inicializa, apenas junta-se ao cluster
+    volumes:
+      - db_data3:/var/lib/mysql
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-preas2024"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress1:
+    image: wordpress:latest
+    volumes:
+      - wp_data1:/var/www/html
+    restart: always
+    ports:
+      - "8081:80"
+    environment:
+      - WORDPRESS_DB_HOST=db
+      - WORDPRESS_DB_USER=wordpress
+      - WORDPRESS_DB_PASSWORD=wordpress
+      - WORDPRESS_DB_NAME=wordpress
+    depends_on:
+      - db
+
+  wordpress2:
+    image: wordpress:latest
+    volumes:
+      - wp_data2:/var/www/html
+    restart: always
+    ports:
+      - "8082:80"
+    environment:
+      - WORDPRESS_DB_HOST=db2
+      - WORDPRESS_DB_USER=wordpress
+      - WORDPRESS_DB_PASSWORD=wordpress
+      - WORDPRESS_DB_NAME=wordpress
+    depends_on:
+      - db2
+
+  wordpress3:
+    image: wordpress:latest
+    volumes:
+      - wp_data3:/var/www/html
+    restart: always
+    ports:
+      - "8083:80"
+    environment:
+      - WORDPRESS_DB_HOST=db3
+      - WORDPRESS_DB_USER=wordpress
+      - WORDPRESS_DB_PASSWORD=wordpress
+      - WORDPRESS_DB_NAME=wordpress
+    depends_on:
+      - db3
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    links:
+      - wordpress1
+      - wordpress2
+      - wordpress3
+    depends_on:
+      - wordpress1
+      - wordpress2
+      - wordpress3
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+
+volumes:
+  db_data:
+  db_data2:
+  db_data3:
+  wp_data1:
+  wp_data2:
+  wp_data3:
